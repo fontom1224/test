@@ -41,3 +41,24 @@ class Asteroid(pygame.sprite.Sprite):
         self.rect.y += self.speed
         if self.rect.top > 600:
             self.kill()
+class Asteroidbr(pygame.sprite.Sprite):
+    def __init__(self, x):
+        super().__init__()
+        self.image = pygame.image.load('assets/asteroidbr.png').convert_alpha()
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = -40
+        self.speed = 3
+
+    def update(self):
+        self.rect.y += self.speed
+        if self.rect.top > 600:
+            self.kill()
+class Hp(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.image.load('assets/HealthsWhiteBorder.png').convert_alpha()
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.speed = 5
