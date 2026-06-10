@@ -79,5 +79,4 @@ class Hp(pygame.sprite.Sprite):
         self.rect.y = y
 
     def update(self, *args):
-        # Метод нужен, чтобы не было ошибки при вызове из группы
         pass
