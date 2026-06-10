@@ -71,6 +71,7 @@ while running:
             bullets_to_remove.append(bullet)
             if asteroid.take_damage():
                 score += asteroid.points
+            break
 
     # Удаляем все пули, которые попали в астероиды
     for bullet in bullets_to_remove:
