@@ -1,6 +1,6 @@
 import pygame
 import random
-from sprites import Ship, Bullet, Asteroid
+from sprites import Ship, Bullet, Asteroid, Hp
 
 # Инициализация
 pygame.init()
@@ -17,6 +17,9 @@ asteroids = pygame.sprite.Group()
 # Создание корабля
 ship = Ship(WIDTH // 2 - 25, HEIGHT - 60)
 all_sprites.add(ship)
+
+hp = Hp(WIDTH // 2 - 45, HEIGHT - 60)
+all_sprites.add(hp)
 
 # Счёт
 score = 0
@@ -43,6 +46,7 @@ while running:
     # Обновление
     keys = pygame.key.get_pressed()
     ship.update(keys)
+    hp.update(keys)
     bullets.update()
     asteroids.update()
 
