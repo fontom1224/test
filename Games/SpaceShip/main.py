@@ -54,27 +54,23 @@ while running:
     spawn_timer += 1
     if spawn_timer > 30:
         spawn_timer = 0
-        # Вероятность: 70 % — маленькие, 30 % — большие
+        # Вероятность спавна астероидов - 70 % — маленькие, 30 % — большие
         asteroid_type = random.choices([1, 2], weights=[70, 30])[0]
         asteroid = Asteroid(random.randint(0, WIDTH - 40), asteroid_type)
         all_sprites.add(asteroid)
         asteroids.add(asteroid)
 
-    # СТОЛКНОВЕНИЯ — исправленный блок
+    # Столкновения
     bullets_to_remove = []  # Список пуль для удаления после обработки
 
     for bullet in bullets:
         # Проверяем столкновения пули с каждым астероидом
         collided_asteroids = pygame.sprite.spritecollide(bullet, asteroids, False)
 
-        if collided_asteroids:  # Если есть столкновение
-            # Добавляем пулю в список для удаления
+        for asteroid in collided_asteroids:  # Перебираем все столкнувшиеся астероиды
             bullets_to_remove.append(bullet)
-            # Обрабатываем первый попавшийся астероид
-            asteroid = collided_asteroids[0]
-            # Астероид получает урон
-            if asteroid.take_damage():  # Если астероид уничтожен
-                score += asteroid.points  # Начисляем очки
+            if asteroid.take_damage():
+                score += asteroid.points
 
     # Удаляем все пули, которые попали в астероиды
     for bullet in bullets_to_remove:
