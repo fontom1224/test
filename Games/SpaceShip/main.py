@@ -2,30 +2,35 @@ import pygame
 import random
 from sprites import Ship, Bullet, Asteroid, Hp
 
-# Инициализация
 pygame.init()
 WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Asteroid Shooter")
 clock = pygame.time.Clock()
 
-# Создание групп спрайтов
+# Группы спрайтов
 all_sprites = pygame.sprite.Group()
 bullets = pygame.sprite.Group()
 asteroids = pygame.sprite.Group()
+heart_sprites = pygame.sprite.Group()  
 
-# Создание корабля
 ship = Ship(WIDTH // 2 - 25, HEIGHT - 60)
 all_sprites.add(ship)
 
-hp = Hp(WIDTH // 2 - 45, HEIGHT - 60)
-all_sprites.add(hp)
+lives = 3
 
-# Счёт
+def update_hearts():
+    heart_sprites.empty()
+    for i in range(lives):
+        heart = Hp(10 + i * 40, 10) 
+        heart_sprites.add(heart)
+        all_sprites.add(heart)
+
+update_hearts()
+
 score = 0
 font = pygame.font.Font(None, 36)
 
-# Таймер для спавна астероидов
 spawn_timer = 0
 
 running = True
@@ -43,10 +48,9 @@ while running:
                 all_sprites.add(bullet)
                 bullets.add(bullet)
 
-    # Обновление
+    # Обновление спрайтов
     keys = pygame.key.get_pressed()
     ship.update(keys)
-    hp.update(keys)
     bullets.update()
     asteroids.update()
 
@@ -54,40 +58,37 @@ while running:
     spawn_timer += 1
     if spawn_timer > 30:
         spawn_timer = 0
-        # Вероятность спавна астероидов - 70 % — маленькие, 30 % — большие
         asteroid_type = random.choices([1, 2], weights=[70, 30])[0]
         asteroid = Asteroid(random.randint(0, WIDTH - 40), asteroid_type)
         all_sprites.add(asteroid)
         asteroids.add(asteroid)
 
-    # Столкновения
-    bullets_to_remove = []  # Список пуль для удаления после обработки
-
+    # Столкновения пуль с астероидами
     for bullet in bullets:
-        # Проверяем столкновения пули с каждым астероидом
-        collided_asteroids = pygame.sprite.spritecollide(bullet, asteroids, False)
-
-        for asteroid in collided_asteroids:  # Перебираем все столкнувшиеся астероиды
-            bullets_to_remove.append(bullet)
+        collided = pygame.sprite.spritecollide(bullet, asteroids, False)
+        for asteroid in collided:
+            bullet.kill()
             if asteroid.take_damage():
                 score += asteroid.points
-            break
+            break  # одна пуля – один астероид
 
-    # Удаляем все пули, которые попали в астероиды
-    for bullet in bullets_to_remove:
-        bullet.kill()
-
-    # Проверка столкновения корабля с астероидами
-    if pygame.sprite.spritecollideany(ship, asteroids):
-        running = False
+    # Столкновение корабля с астероидами
+    dtp = pygame.sprite.spritecollide(ship, asteroids, True)  
+    if dtp:
+        lives -= 1
+        if lives <= 0:
+            running = False
+        else:
+            heart_sprites.remove(all)
+            all_sprites.remove(heart_sprites)
+            update_hearts()  
 
     # Отрисовка
     all_sprites.draw(screen)
 
     # Отображение счёта
-    score_text = font.render(f"Score: {score}", True, (255, 255, 255))
-    screen.blit(score_text, (10, 10))
-
+    score_text = font.render(f"Счёт: {score}", True, (255, 255, 255))
+    screen.blit(score_text, (10, 50))
     pygame.display.flip()
 
 pygame.quit()
