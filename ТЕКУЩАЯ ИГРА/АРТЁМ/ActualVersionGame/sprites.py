@@ -240,6 +240,13 @@ class GodBoss(pygame.sprite.Sprite):
             return True
         return False
 
+    def take_damage(self):
+        self.health -= 1
+        if self.health <= 0:
+            self.kill()
+            return True
+        return False
+
 
 class LaserBullet(pygame.sprite.Sprite):
     def __init__(self, x, y):
