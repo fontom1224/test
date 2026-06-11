@@ -43,24 +43,19 @@ def show_menu():
     quit_button = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 20, 200, 50)
 
     while True:
-        # Рисуем фон
         screen.blit(bg_image, (0, 0))
 
-        # Затемнение
         overlay = pygame.Surface((WIDTH, HEIGHT))
         overlay.set_alpha(180)
         overlay.fill((0, 0, 0))
         screen.blit(overlay, (0, 0))
 
-        # Заголовок
         title = font_title.render("ASTEROID SHOOTER", True, (255, 255, 255))
         title_rect = title.get_rect(center=(WIDTH // 2, HEIGHT // 3))
         screen.blit(title, title_rect)
 
-        # Получаем позицию мыши
         mouse_pos = pygame.mouse.get_pos()
 
-        # Кнопка ИГРАТЬ
         play_color = (50, 50, 200) if play_button.collidepoint(mouse_pos) else (100, 100, 100)
         pygame.draw.rect(screen, play_color, play_button)
         pygame.draw.rect(screen, (255, 255, 255), play_button, 2)
@@ -68,7 +63,6 @@ def show_menu():
         play_rect = play_text.get_rect(center=play_button.center)
         screen.blit(play_text, play_rect)
 
-        # Кнопка ВЫХОД
         quit_color = (200, 50, 50) if quit_button.collidepoint(mouse_pos) else (100, 100, 100)
         pygame.draw.rect(screen, quit_color, quit_button)
         pygame.draw.rect(screen, (255, 255, 255), quit_button, 2)
@@ -78,7 +72,6 @@ def show_menu():
 
         pygame.display.flip()
 
-        # Обработка событий
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
@@ -130,7 +123,13 @@ def reset_game():
 
 
 def update_hearts():
+    """Обновляет отображение сердец"""
+    # Очищаем старые сердца
+    for heart in heart_sprites:
+        heart.kill()
     heart_sprites.empty()
+
+    # Создаём новые сердца
     for i in range(lives):
         heart = Hp(10 + i * 40, 10)
         heart_sprites.add(heart)
@@ -151,7 +150,7 @@ POWERUP_DURATION = 8000
 SHOT_DELAY_BOOST = 250
 
 running = True
-space_pressed = False
+space_just_pressed = False  # Флаг для однократного выстрела
 last_shot_time = 0
 font = pygame.font.Font(None, 36)
 
@@ -163,9 +162,10 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                space_pressed = True
+                # Только один выстрел при нажатии
                 current_time = pygame.time.get_ticks()
                 if current_time - last_shot_time >= current_shot_delay:
                     bullet = Bullet(ship.rect.centerx, ship.rect.top)
@@ -175,20 +175,20 @@ while running:
                         shoot_sound.play()
                     last_shot_time = current_time
 
+            # ESC для возврата в меню
+            if event.key == pygame.K_ESCAPE:
+                pygame.mixer.music.pause()
+                if show_menu():
+                    reset_game()
+                    last_shot_time = 0
+                else:
+                    running = False
+                pygame.mixer.music.unpause()
+
     current_time = pygame.time.get_ticks()
     if powerup_active and current_time >= powerup_end_time:
         powerup_active = False
         current_shot_delay = BASE_SHOT_DELAY
-
-    if space_pressed:
-        current_time = pygame.time.get_ticks()
-        if current_time - last_shot_time >= current_shot_delay:
-            bullet = Bullet(ship.rect.centerx, ship.rect.top)
-            all_sprites.add(bullet)
-            bullets.add(bullet)
-            if shoot_sound:
-                shoot_sound.play()
-            last_shot_time = current_time
 
     keys = pygame.key.get_pressed()
     ship.update(keys)
@@ -386,18 +386,14 @@ while running:
             pygame.mixer.music.pause()
             if show_menu():
                 reset_game()
-                space_pressed = False
                 last_shot_time = 0
             else:
                 running = False
             pygame.mixer.music.unpause()
         else:
-            for heart in heart_sprites:
-                heart.kill()
-            heart_sprites.empty()
-            update_hearts()
+            update_hearts()  # Просто обновляем сердца
 
-    # Столкновения с пулями
+    # Столкновения с пулями боссов
     if pygame.sprite.spritecollide(ship, boss_bullets, True):
         lives -= 1
         if lives <= 0:
@@ -407,17 +403,14 @@ while running:
             pygame.mixer.music.pause()
             if show_menu():
                 reset_game()
-                space_pressed = False
                 last_shot_time = 0
             else:
                 running = False
             pygame.mixer.music.unpause()
         else:
-            for heart in heart_sprites:
-                heart.kill()
-            heart_sprites.empty()
             update_hearts()
 
+    # Столкновения с лазерными пулями
     if pygame.sprite.spritecollide(ship, laser_bullets, True):
         lives -= 1
         if lives <= 0:
@@ -427,21 +420,19 @@ while running:
             pygame.mixer.music.pause()
             if show_menu():
                 reset_game()
-                space_pressed = False
                 last_shot_time = 0
             else:
                 running = False
             pygame.mixer.music.unpause()
         else:
-            for heart in heart_sprites:
-                heart.kill()
-            heart_sprites.empty()
             update_hearts()
 
+    # Столкновения с сетью (только замедление)
     net_hits = pygame.sprite.spritecollide(ship, net_bullets, True)
     for net in net_hits:
         ship.slow_timer = 180
 
+    # Столкновения с диагональными пулями
     if pygame.sprite.spritecollide(ship, diag_bullets, True):
         lives -= 1
         if lives <= 0:
@@ -451,17 +442,14 @@ while running:
             pygame.mixer.music.pause()
             if show_menu():
                 reset_game()
-                space_pressed = False
                 last_shot_time = 0
             else:
                 running = False
             pygame.mixer.music.unpause()
         else:
-            for heart in heart_sprites:
-                heart.kill()
-            heart_sprites.empty()
             update_hearts()
 
+    # Столкновения с самонаводящимися пулями
     if pygame.sprite.spritecollide(ship, homing_bullets, True):
         lives -= 1
         if lives <= 0:
@@ -471,15 +459,11 @@ while running:
             pygame.mixer.music.pause()
             if show_menu():
                 reset_game()
-                space_pressed = False
                 last_shot_time = 0
             else:
                 running = False
             pygame.mixer.music.unpause()
         else:
-            for heart in heart_sprites:
-                heart.kill()
-            heart_sprites.empty()
             update_hearts()
 
     # Спавн боссов
