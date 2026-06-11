@@ -17,6 +17,7 @@ try:
     boom_sound = pygame.mixer.Sound('assets/Boom.mp3')
     dead_asteroid_sound = pygame.mixer.Sound('assets/DeadAsteroid.mp3')
     shoot_sound = pygame.mixer.Sound('assets/OneShoot.mp3')
+    powerup_sound = pygame.mixer.Sound('assets/PowerUp.mp3')  # Звук подбора бонуса
     pygame.mixer.music.load('assets/Music.mp3')
     pygame.mixer.music.set_volume(0.5)
     pygame.mixer.music.play(-1)
@@ -26,6 +27,7 @@ except FileNotFoundError as e:
     boom_sound = None
     dead_asteroid_sound = None
     shoot_sound = None
+    powerup_sound = None
 
 # Группы спрайтов
 all_sprites = pygame.sprite.Group()
@@ -33,7 +35,8 @@ bullets = pygame.sprite.Group()
 asteroids = pygame.sprite.Group()
 heart_sprites = pygame.sprite.Group()
 bosses = pygame.sprite.Group()
-boss_bullets = pygame.sprite.Group()  # группа для пуль босса
+boss_bullets = pygame.sprite.Group()
+powerups = pygame.sprite.Group()  # Новая группа для бонусов
 
 ship = Ship(WIDTH // 2 - 25, HEIGHT - 60)
 all_sprites.add(ship)
@@ -44,6 +47,18 @@ font = pygame.font.Font(None, 36)
 
 # Флаг, появился ли уже босс (чтобы не спавнить несколько)
 boss1_spawned = False
+
+# Переменные для стрельбы
+space_pressed = False
+last_shot_time = 0
+BASE_SHOT_DELAY = 500  # Базовая задержка 0.5 секунды
+current_shot_delay = BASE_SHOT_DELAY  # Текущая задержка
+
+# Переменные для бонуса
+powerup_active = False
+powerup_end_time = 0
+POWERUP_DURATION = 8000  # 8 секунд действия
+SHOT_DELAY_BOOST = 250  # Ускоренная стрельба 0.15 секунды
 
 
 def update_hearts():
@@ -57,11 +72,6 @@ def update_hearts():
 update_hearts()
 
 spawn_timer = 0
-
-# Стрельба с задержкой
-space_pressed = False
-last_shot_time = 0
-SHOT_DELAY = 500
 
 running = True
 while running:
@@ -77,7 +87,7 @@ while running:
             if event.key == pygame.K_SPACE:
                 space_pressed = True
                 current_time = pygame.time.get_ticks()
-                if current_time - last_shot_time >= SHOT_DELAY:
+                if current_time - last_shot_time >= current_shot_delay:
                     bullet = Bullet(ship.rect.centerx, ship.rect.top)
                     all_sprites.add(bullet)
                     bullets.add(bullet)
@@ -88,10 +98,17 @@ while running:
             if event.key == pygame.K_SPACE:
                 space_pressed = False
 
+    # Проверка окончания действия бонуса
+    current_time = pygame.time.get_ticks()
+    if powerup_active and current_time >= powerup_end_time:
+        powerup_active = False
+        current_shot_delay = BASE_SHOT_DELAY
+        print("Бонус закончился! Скорость стрельбы нормальная")
+
     # Автострельба
     if space_pressed:
         current_time = pygame.time.get_ticks()
-        if current_time - last_shot_time >= SHOT_DELAY:
+        if current_time - last_shot_time >= current_shot_delay:
             bullet = Bullet(ship.rect.centerx, ship.rect.top)
             all_sprites.add(bullet)
             bullets.add(bullet)
@@ -104,6 +121,7 @@ while running:
     ship.update(keys)
     bullets.update()
     asteroids.update()
+    powerups.update()  # Обновляем бонусы
 
     # Обновление боссов и их стрельба
     for boss in bosses:
@@ -132,11 +150,20 @@ while running:
                     dead_asteroid_sound.play()
                 score += asteroid.points
 
+                # Шанс выпадения бонуса (30% для больших, 15% для маленьких)
+                drop_chance = 0.3 if asteroid.asteroid_type == 2 else 0.15
+                if random.random() < drop_chance:
+                    powerup = PowerUp(asteroid.rect.centerx, asteroid.rect.centery)
+                    all_sprites.add(powerup)
+                    powerups.add(powerup)
+
                 # Если это большой метеорит, создаём два маленьких
                 if asteroid.asteroid_type == 2:
-                    # Создаём два маленьких метеорита на месте большого
-                    small_asteroid1 = Asteroid(asteroid.rect.centerx - 20, 1)
-                    small_asteroid2 = Asteroid(asteroid.rect.centerx + 20, 1)
+                    # Ограничиваем позиции, чтобы не выходили за границы
+                    pos1_x = max(0, min(asteroid.rect.centerx - 20, WIDTH - 40))
+                    pos2_x = max(0, min(asteroid.rect.centerx + 20, WIDTH - 40))
+                    small_asteroid1 = Asteroid(pos1_x, 1)
+                    small_asteroid2 = Asteroid(pos2_x, 1)
                     small_asteroid1.rect.y = asteroid.rect.centery
                     small_asteroid2.rect.y = asteroid.rect.centery
                     all_sprites.add(small_asteroid1, small_asteroid2)
@@ -150,10 +177,21 @@ while running:
         for boss in collided:
             bullet.kill()
             if boss.take_damage():
-                score += boss.points  # босс уничтожен, можно спавнить нового
+                score += boss.points
                 if dead_asteroid_sound:
                     dead_asteroid_sound.play()
             break
+
+    # --- Столкновение корабля с бонусами ---
+    collected = pygame.sprite.spritecollide(ship, powerups, True)
+    for powerup in collected:
+        if powerup_sound:
+            powerup_sound.play()
+
+        powerup_active = True
+        powerup_end_time = pygame.time.get_ticks() + POWERUP_DURATION
+        current_shot_delay = SHOT_DELAY_BOOST
+
 
     # --- Столкновение корабля с астероидами ---
     if pygame.sprite.spritecollide(ship, asteroids, True):
@@ -193,9 +231,39 @@ while running:
     # Отрисовка
     all_sprites.draw(screen)
 
+    # Полоска здоровья босса
+    for boss in bosses:
+        health_percent = boss.health / 10
+        bar_width = 200
+        bar_height = 15
+        bar_x = WIDTH // 2 - bar_width // 2
+        bar_y = 20
+
+        pygame.draw.rect(screen, (100, 0, 0), (bar_x, bar_y, bar_width, bar_height))
+        pygame.draw.rect(screen, (255, 0, 0), (bar_x, bar_y, bar_width * health_percent, bar_height))
+
+        boss_text = font.render("БОСС", True, (255, 100, 100))
+        screen.blit(boss_text, (WIDTH // 2 - 30, 5))
+
     # Отображение счёта
     score_text = font.render(f"Счёт: {score}", True, (255, 255, 255))
     screen.blit(score_text, (10, 50))
+
+    # Отображение активного бонуса
+    if powerup_active:
+        time_left = max(0, (powerup_end_time - pygame.time.get_ticks()) // 1000)
+        boost_text = font.render(f"УСКОРЕНИЕ: {time_left}с", True, (0, 255, 0))
+        screen.blit(boost_text, (WIDTH - 180, 10))
+
+        # Полоска времени бонуса
+        powerup_percent = (powerup_end_time - pygame.time.get_ticks()) / POWERUP_DURATION
+        bar_width = 150
+        bar_height = 8
+        bar_x = WIDTH - 170
+        bar_y = 40
+        pygame.draw.rect(screen, (0, 100, 0), (bar_x, bar_y, bar_width, bar_height))
+        pygame.draw.rect(screen, (0, 255, 0), (bar_x, bar_y, bar_width * powerup_percent, bar_height))
+
     pygame.display.flip()
 
 pygame.mixer.music.stop()
