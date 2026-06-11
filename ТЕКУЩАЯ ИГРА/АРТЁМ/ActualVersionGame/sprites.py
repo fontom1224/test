@@ -1,10 +1,6 @@
 import pygame
 import random
-
-pygame.init()
-pygame.mixer.init()
-
-shoot_sound = pygame.mixer.Sound('assets/OneShoot.mp3')
+import math
 
 class Ship(pygame.sprite.Sprite):
     def __init__(self, x, y):
@@ -13,9 +9,18 @@ class Ship(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
-        self.speed = 5
+        self.base_speed = 5
+        self.speed = self.base_speed
+        self.slow_timer = 0
+        self.slow_factor = 0.5
 
     def update(self, keys):
+        if self.slow_timer > 0:
+            self.slow_timer -= 1
+            self.speed = self.base_speed * self.slow_factor
+        else:
+            self.speed = self.base_speed
+
         if keys[pygame.K_LEFT] and self.rect.left > 0:
             self.rect.x -= self.speed
         if keys[pygame.K_RIGHT] and self.rect.right < 800:
@@ -43,13 +48,13 @@ class Bullet(pygame.sprite.Sprite):
 class Asteroid(pygame.sprite.Sprite):
     def __init__(self, x, asteroid_type=1):
         super().__init__()
-        if asteroid_type == 1:  # Маленький метеор
+        if asteroid_type == 1:
             self.image_path = 'assets/asteroid1.png'
             self.size_factor = 1.0
             self.health = 1
             self.speed = 4
             self.points = 10
-        else:  # Средний метеор
+        else:
             self.image_path = 'assets/asteroid2.png'
             self.size_factor = 1.1
             self.health = 3
@@ -91,7 +96,7 @@ class BossBullet(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
         # Используем текстуру пули игрока, можно заменить на отдельную
-        self.image = pygame.image.load('assets/bullet.png').convert_alpha()
+        self.image = pygame.image.load('assets/bossbullet.png').convert_alpha()
         self.image = pygame.transform.rotate(self.image, 180)  # переворачиваем для врага
         self.rect = self.image.get_rect()
         self.rect.centerx = x
@@ -103,7 +108,6 @@ class BossBullet(pygame.sprite.Sprite):
         if self.rect.top > 600:
             self.kill()
 
-
 class Boss(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
@@ -113,22 +117,15 @@ class Boss(pygame.sprite.Sprite):
         self.rect.y = y
         self.speed = 3
         self.health = 10
-        self.points = 100  # очки за уничтожение босса
-
-        # Движение влево-вправо
-        self.direction = 1  # 1 = вправо, -1 = влево
+        self.points = 100
+        self.direction = 1
         self.change_direction_timer = 0
-        self.direction_interval = random.randint(60, 180)  # смена направления через 1-3 секунды (60-180 кадров)
-
-        # Стрельба
+        self.direction_interval = random.randint(60, 180)
         self.shoot_timer = 0
-        self.shoot_delay = 45  # кадров между выстрелами (~0.75 сек при 60 FPS)
+        self.shoot_delay = 45
 
     def update(self):
-        # Движение влево-вправо
         self.rect.x += self.speed * self.direction
-
-        # Границы экрана
         if self.rect.left < 0:
             self.rect.left = 0
             self.direction = 1
@@ -136,20 +133,16 @@ class Boss(pygame.sprite.Sprite):
             self.rect.right = 800
             self.direction = -1
 
-        # Смена направления через случайные интервалы
         self.change_direction_timer += 1
         if self.change_direction_timer >= self.direction_interval:
             self.direction *= -1
             self.change_direction_timer = 0
             self.direction_interval = random.randint(60, 180)
 
-        # Стрельба
         self.shoot_timer += 1
         if self.shoot_timer >= self.shoot_delay:
             self.shoot_timer = 0
-            if shoot_sound:
-                shoot_sound.play()
-            return True  # сигнал, что нужно создать пулю
+            return True
         return False
 
     def take_damage(self):
@@ -163,11 +156,8 @@ class Boss(pygame.sprite.Sprite):
 class PowerUp(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
-        # Загружаем картинку бонуса
         self.image = pygame.image.load('assets/speedUpg.png').convert_alpha()
         self.image = pygame.transform.scale(self.image, (30, 30))
-
-
         self.rect = self.image.get_rect()
         self.rect.centerx = x
         self.rect.centery = y
@@ -177,3 +167,193 @@ class PowerUp(pygame.sprite.Sprite):
         self.rect.y += self.speed
         if self.rect.top > 600:
             self.kill()
+
+
+class GodBoss(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.image.load('assets/god.png').convert_alpha()
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.speed = 2
+        self.health = 20
+        self.points = 200
+        self.homing_chance = 5.0
+
+        self.direction = 1
+        self.change_dir_timer = 0
+        self.dir_interval = random.randint(60, 180)
+
+        self.shoot_timer = 0
+        self.shoot_delay = 30
+        self.attack_pattern = 0
+        self.pattern_change_timer = 0
+        self.pattern_interval = 120
+
+    def update(self):
+        self.rect.x += self.speed * self.direction
+        if self.rect.left < 0:
+            self.rect.left = 0
+            self.direction = 1
+        if self.rect.right > 800:
+            self.rect.right = 800
+            self.direction = -1
+
+        self.change_dir_timer += 1
+        if self.change_dir_timer >= self.dir_interval:
+            self.direction *= -1
+            self.change_dir_timer = 0
+            self.dir_interval = random.randint(60, 180)
+
+        self.pattern_change_timer += 1
+        if self.pattern_change_timer >= self.pattern_interval:
+            self.pattern_change_timer = 0
+            self.attack_pattern = (self.attack_pattern + 1) % 4
+
+        self.shoot_timer += 1
+        if self.shoot_timer >= self.shoot_delay:
+            self.shoot_timer = 0
+            if self.attack_pattern == 3 and random.random() > self.homing_chance:
+                return False
+            return True
+        return False
+
+    def take_damage(self):
+        self.health -= 1
+        if self.health <= 0:
+            self.kill()
+            return True
+        return False
+
+
+class LaserBullet(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.image.load('assets/bluebullet.png').convert_alpha()
+        self.rect = self.image.get_rect()
+        self.rect.centerx = x
+        self.rect.top = y
+        self.speed = 10
+
+    def update(self):
+        self.rect.y += self.speed
+        if self.rect.top > 600:
+            self.kill()
+
+
+class NetBullet(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.image.load('assets/greenbullet.png').convert_alpha()
+        self.rect = self.image.get_rect()
+        self.rect.centerx = x
+        self.rect.centery = y
+        self.speed = 3
+
+    def update(self):
+        self.rect.y += self.speed
+        if self.rect.top > 600:
+            self.kill()
+
+
+class DiagBullet(pygame.sprite.Sprite):
+    def __init__(self, x, y, angle):
+        super().__init__()
+        self.image = pygame.image.load('assets/redbullet.png').convert_alpha()
+        self.rect = self.image.get_rect()
+        self.rect.centerx = x
+        self.rect.centery = y
+        self.speed = 5
+        self.dx = math.sin(angle) * self.speed
+        self.dy = math.cos(angle) * self.speed
+
+    def update(self):
+        self.rect.x += self.dx
+        self.rect.y += self.dy
+        if (self.rect.top > 600 or self.rect.bottom < 0 or
+            self.rect.left < 0 or self.rect.right > 800):
+            self.kill()
+
+
+class HomingBullet(pygame.sprite.Sprite):
+    def __init__(self, x, y, target):
+        super().__init__()
+        self.image = pygame.image.load('assets/yellowbullet.png').convert_alpha()
+        self.rect = self.image.get_rect()
+        self.rect.centerx = x
+        self.rect.centery = y
+        self.speed = 1.5
+        self.target = target
+
+    def update(self):
+        if self.target is None or not self.target.alive():
+            self.kill()
+            return
+        dx = self.target.rect.centerx - self.rect.centerx
+        dy = self.target.rect.centery - self.rect.centery
+        dist = math.hypot(dx, dy)
+        if dist != 0:
+            self.rect.x += (dx / dist) * self.speed
+            self.rect.y += (dy / dist) * self.speed
+        if (self.rect.top > 600 or self.rect.bottom < 0 or
+            self.rect.left < 0 or self.rect.right > 800):
+            self.kill()
+
+
+class EnemyPlaneBase(pygame.sprite.Sprite):
+    def __init__(self, x, y, image_path, shoot_delay=60, move_speed=2):
+        super().__init__()
+        self.image = pygame.image.load(image_path).convert_alpha()
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.health = 3
+        self.points = 20
+        self.shoot_timer = 0
+        self.shoot_delay = shoot_delay
+        self.player = None
+        self.move_speed = move_speed
+        self.direction = 1
+
+    def update(self):
+        self.rect.x += self.move_speed * self.direction
+        if self.rect.right >= 800:
+            self.rect.right = 800
+            self.direction = -1
+        if self.rect.left <= 0:
+            self.rect.left = 0
+            self.direction = 1
+
+        self.shoot_timer += 1
+        if self.shoot_timer >= self.shoot_delay:
+            self.shoot_timer = 0
+            return True
+        return False
+
+    def take_damage(self):
+        self.health -= 1
+        if self.health <= 0:
+            self.kill()
+            return True
+        return False
+
+
+class BluePlane(EnemyPlaneBase):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'assets/blue.png', shoot_delay=90, move_speed=2)   # реже
+
+
+class GreenPlane(EnemyPlaneBase):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'assets/green.png', shoot_delay=60, move_speed=2)
+
+
+class RedPlane(EnemyPlaneBase):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'assets/red.png', shoot_delay=60, move_speed=2)
+
+
+class YellowPlane(EnemyPlaneBase):
+    def __init__(self, x, y):
+        super().__init__(x, y, 'assets/yellow.png', shoot_delay=120, move_speed=2)
