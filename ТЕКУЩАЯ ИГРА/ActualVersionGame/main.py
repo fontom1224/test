@@ -1,9 +1,9 @@
 import pygame
 import random
-from sprites import Ship, Bullet, Asteroid, Hp
+from sprites import *
 
 pygame.init()
-pygame.mixer.init()  # Инициализация звука
+pygame.mixer.init()
 
 WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -27,18 +27,23 @@ except FileNotFoundError as e:
     dead_asteroid_sound = None
     shoot_sound = None
 
-
 # Группы спрайтов
 all_sprites = pygame.sprite.Group()
 bullets = pygame.sprite.Group()
 asteroids = pygame.sprite.Group()
 heart_sprites = pygame.sprite.Group()
+bosses = pygame.sprite.Group()
+boss_bullets = pygame.sprite.Group()  # группа для пуль босса
 
 ship = Ship(WIDTH // 2 - 25, HEIGHT - 60)
 all_sprites.add(ship)
 
 lives = 3
+score = 0
+font = pygame.font.Font(None, 36)
 
+# Флаг, появился ли уже босс (чтобы не спавнить несколько)
+boss1_spawned = False
 
 def update_hearts():
     heart_sprites.empty()
@@ -47,25 +52,19 @@ def update_hearts():
         heart_sprites.add(heart)
         all_sprites.add(heart)
 
-
 update_hearts()
-
-score = 0
-font = pygame.font.Font(None, 36)
 
 spawn_timer = 0
 
-# Переменные для стрельбы с задержкой
+# Стрельба с задержкой
 space_pressed = False
 last_shot_time = 0
-SHOT_DELAY = 500  # 500 миллисекунд = 0.5 секунды
-
+SHOT_DELAY = 500
 
 running = True
 while running:
     clock.tick(60)
     screen.fill((0, 0, 0))
-
     screen.blit(bg_image, (0, 0))
 
     # Обработка событий
@@ -75,7 +74,6 @@ while running:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 space_pressed = True
-                # Мгновенный выстрел при первом нажатии
                 current_time = pygame.time.get_ticks()
                 if current_time - last_shot_time >= SHOT_DELAY:
                     bullet = Bullet(ship.rect.centerx, ship.rect.top)
@@ -88,7 +86,7 @@ while running:
             if event.key == pygame.K_SPACE:
                 space_pressed = False
 
-    # Автоматическая стрельба при зажатой кнопке
+    # Автострельба
     if space_pressed:
         current_time = pygame.time.get_ticks()
         if current_time - last_shot_time >= SHOT_DELAY:
@@ -104,6 +102,14 @@ while running:
     ship.update(keys)
     bullets.update()
     asteroids.update()
+    
+    # Обновление боссов и их стрельба
+    for boss in bosses:
+        if boss.update():  # если пора стрелять
+            boss_bullet = BossBullet(boss.rect.centerx, boss.rect.bottom)
+            all_sprites.add(boss_bullet)
+            boss_bullets.add(boss_bullet)
+    boss_bullets.update()
 
     # Спавн астероидов
     spawn_timer += 1
@@ -114,36 +120,64 @@ while running:
         all_sprites.add(asteroid)
         asteroids.add(asteroid)
 
-    # Столкновения пуль с астероидами
+    # --- Столкновения пуль игрока с астероидами ---
     for bullet in bullets:
         collided = pygame.sprite.spritecollide(bullet, asteroids, False)
         for asteroid in collided:
             bullet.kill()
             if asteroid.take_damage():
-                # звук уничтожения астероида
                 if dead_asteroid_sound:
                     dead_asteroid_sound.play()
                 score += asteroid.points
-            break  # одна пуля – один астероид
+            break
 
-    # Столкновение корабля с астероидами
-    dtp = pygame.sprite.spritecollide(ship, asteroids, True)
-    if dtp:
+    # --- Столкновения пуль игрока с боссом ---
+    for bullet in bullets:
+        collided = pygame.sprite.spritecollide(bullet, bosses, False)
+        for boss in collided:
+            bullet.kill()
+            if boss.take_damage():
+                score += boss.points  # босс уничтожен, можно спавнить нового
+                if dead_asteroid_sound:
+                    dead_asteroid_sound.play()
+            break
+
+    # --- Столкновение корабля с астероидами ---
+    if pygame.sprite.spritecollide(ship, asteroids, True):
         lives -= 1
         if lives <= 0:
-            # звук взрыва корабля 
             if boom_sound:
                 boom_sound.play()
-            pygame.time.wait(500)  # Небольшая задержка перед закрытием
+            pygame.time.wait(500)
             running = False
         else:
-            # Очищаем старые сердечки и обновляем
             for heart in heart_sprites:
                 heart.kill()
             heart_sprites.empty()
             update_hearts()
 
-            # Отрисовка
+    # --- Столкновение корабля с пулями босса ---
+    if pygame.sprite.spritecollide(ship, boss_bullets, True):
+        lives -= 1
+        if lives <= 0:
+            if boom_sound:
+                boom_sound.play()
+            pygame.time.wait(500)
+            running = False
+        else:
+            for heart in heart_sprites:
+                heart.kill()
+            heart_sprites.empty()
+            update_hearts()
+
+    # --- Спавн босса при достижении 250 очков (один раз) ---
+    if score >= 250 and not boss1_spawned and len(bosses) == 0:
+        boss = Boss(random.randint(100, WIDTH - 100), 50)
+        all_sprites.add(boss)
+        bosses.add(boss)
+        boss1_spawned = True
+
+    # Отрисовка
     all_sprites.draw(screen)
 
     # Отображение счёта
@@ -151,6 +185,5 @@ while running:
     screen.blit(score_text, (10, 50))
     pygame.display.flip()
 
-# Останавливаем музыку при выходе
 pygame.mixer.music.stop()
 pygame.quit()
